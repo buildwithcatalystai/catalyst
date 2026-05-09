@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "catalyst-mcp": {
+      "type": "http",
+      "url": "${CATALYST_MCP_URL}"
+    }
+  }
+}
