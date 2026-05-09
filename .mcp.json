@@ -2,7 +2,7 @@
   "mcpServers": {
     "catalyst-mcp": {
       "type": "http",
-      "url": "http://13.202.117.250/mcp"
+      "url": "http://13.202.117.250:9000/mcp"
     }
   }
 }
