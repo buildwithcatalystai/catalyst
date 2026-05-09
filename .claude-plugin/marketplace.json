@@ -1,0 +1,18 @@
+{
+  "name": "catalyst-marketplace",
+  "owner": {
+    "name": "ashwiny66",
+    "url": "https://github.com/ashwiny66"
+  },
+  "plugins": [
+    {
+      "name": "catalyst",
+      "description": "Build apps via Catalyst from inside Claude Code.",
+      "source": {
+        "source": "github",
+        "repo": "ashwiny66/catalyst"
+      },
+      "homepage": "https://github.com/ashwiny66/catalyst"
+    }
+  ]
+}
