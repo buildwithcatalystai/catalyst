@@ -26,10 +26,9 @@ cp .env.example .env
 
 | Variable | Default | What it is |
 |---|---|---|
-| `CATALYST_MCP_URL`     | `http://localhost:9000/mcp` | Where catalyst-mcp listens |
-| `CATALYST_BACKEND_URL` | `http://localhost:8000`     | Where catalyst-builder API + OAuth lives |
+| `CATALYST_MCP_URL` | `http://localhost:9000/mcp` | Where catalyst-mcp listens |
 
-Both typically resolve to the box where you ran `cd catalyst-builder && ./start.sh`.
+Point this at wherever you ran `start.sh`. The MCP server handles the backend connection internally — no other URLs needed.
 
 ## Self-hosting the backend
 
