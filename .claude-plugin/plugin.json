@@ -8,7 +8,5 @@
   },
   "homepage": "https://github.com/ashwiny66/catalyst",
   "repository": "https://github.com/ashwiny66/catalyst",
-  "skills": [
-    "skills/catalyst"
-  ]
+  "skills": "skills/"
 }
