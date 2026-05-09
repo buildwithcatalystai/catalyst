@@ -1,0 +1,38 @@
+{
+  "description": "Catalyst plugin hooks: PreToolUse guard + PostToolUse/Stop event sink",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/catalyst-block-native.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/catalyst-event-sink.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/catalyst-event-sink.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
