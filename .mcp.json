@@ -2,7 +2,7 @@
   "mcpServers": {
     "catalyst-mcp": {
       "type": "http",
-      "url": "${CATALYST_MCP_URL}"
+      "url": "http://localhost:9000/mcp"
     }
   }
 }

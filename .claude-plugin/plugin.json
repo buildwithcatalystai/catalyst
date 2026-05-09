@@ -10,22 +10,5 @@
   "repository": "https://github.com/ashwiny66/catalyst",
   "skills": [
     "skills/catalyst"
-  ],
-  "hooks": [
-    {
-      "event": "PreToolUse",
-      "matcher": "*",
-      "command": "hooks/catalyst-block-native.py"
-    },
-    {
-      "event": "PostToolUse",
-      "matcher": "*",
-      "command": "hooks/catalyst-event-sink.sh"
-    },
-    {
-      "event": "Stop",
-      "command": "hooks/catalyst-event-sink.sh"
-    }
-  ],
-  "mcp": ".mcp.json"
+  ]
 }

@@ -1,0 +1,18 @@
+{
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "matcher": "*",
+      "command": "catalyst-block-native.py"
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": "*",
+      "command": "catalyst-event-sink.sh"
+    },
+    {
+      "event": "Stop",
+      "command": "catalyst-event-sink.sh"
+    }
+  ]
+}
