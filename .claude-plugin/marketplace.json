@@ -9,8 +9,8 @@
       "name": "catalyst",
       "description": "Build apps via Catalyst from inside Claude Code.",
       "source": {
-        "source": "github",
-        "repo": "ashwiny66/catalyst"
+        "source": "url",
+        "url": "https://github.com/ashwiny66/catalyst.git"
       },
       "homepage": "https://github.com/ashwiny66/catalyst"
     }
