@@ -261,11 +261,13 @@ PRD-as-contract: what the user approves and what the coding agent reads must be 
 
 **Batch independent tool calls.** 3 reads in one turn, 3 writes in one turn. Sequence only when the next call needs the prior result. Don't `npm run build` — the launcher handles it.
 
+**Close every turn with `record_turn`.** A coding turn isn't done until the wizard knows about it. After your last tool_result and before your next assistant message, send one `record_turn` call per content block the turn produced — thinking, tool_call, tool_result, assistant_text, in the order they happened. Skipping = invisible turn in ChatPane, missing history on reload, broken cost tracking. The tool's own description has the per-kind payload shape.
+
 **Validate the CORE workflows the user asked for, with `playwright_test` — and only those. Not small nuances, not unnecessary loops.**
 
 **End the build:**
 1. Emit one line: `{"status":"completed","summary":"<one-paragraph>"}`
-2. Same turn: `complete_build(sid, summary)` → returns `{frontend_url, backend_url}`.
+2. Same turn: `record_turn(sid, kind="completion", payload={status, summary})` then `complete_build(sid, summary)` → returns `{frontend_url, backend_url}`.
 
 **The next thing you say MUST be the live URLs.** On their own line, before any menu:
 
@@ -274,7 +276,7 @@ PRD-as-contract: what the user approves and what the coding agent reads must be 
    backend: <backend_url>
 ```
 
-The Stop hook auto-detects the JSON and POSTs `/auto-complete` as a safety net. Always call `complete_build` yourself; the hook is belt-and-suspenders. Idempotent.
+`complete_build` is idempotent — safe to retry if the network blips.
 
 ## Coding-mode tools
 
@@ -296,6 +298,7 @@ Native Read/Write/Edit/Bash/Grep/Glob/Agent/WebFetch/WebSearch are blocked while
 | `get_existing_tables_summary` / `get_table_detail` | DB schema lookups. |
 | `get_existing_apis_summary` / `get_api_endpoint_detail` | External API shapes. |
 | `playwright_test` | Run a Python Playwright script. ONLY validation tool. |
+| `record_turn` | **Mandatory** end-of-turn write. Once per content block, in order. See §Coding mechanics. |
 
 > An older `playwright_flow` JSON-step shortcut existed and was removed; `playwright_test` covers everything it could.
 
@@ -319,7 +322,7 @@ Sentinel = `~/.claude/state/catalyst-active-session.json`. While it exists (`cur
 
 - Every user message = work on the app under build → `send_message(sid)`.
 - **Hard refuse Catalyst-internals work** (skill source, wizard internals, hook diagnostics, etc.). Verbatim refusal text in `references/05-troubleshooting.md`. Wait for the user to say `end` — never call `abandon_build` for them unprompted.
-- Native tools are blocked by hook. Don't fight it.
+- Native tools are blocked while the sentinel is live; the error names the `coding_workspace__*` redirect. Don't fight it.
 - The "just one quick fix to Catalyst" trap is exactly this rule's purpose — corrupting a build's state is the whole session.
 
 **User-escape phrases:**
@@ -353,9 +356,13 @@ Routing:
 
 If the user replies with anything else (e.g. just types a feature request), assume Pick 1 and act. Never use `abandon_build` here — `switch_project` is the right primitive for both 2 and 3.
 
-## Persistence
+## Persistence — you are the producer
 
-Every coding-mode turn is captured by a hook → `record_turn` → wizard's persistent store + live WS broadcast. You don't call `record_turn`. The user can close Claude Code and come back; history intact.
+The wizard's ChatPane and history endpoints read from one place: the PostgresSaver checkpoint for the current `gen_stream_id`. `record_turn` writes there. **You are the only producer.** If you don't call it, the turn never happened from the wizard's perspective — no live render in ChatPane, no row on cold reload, no cost line, no audit trail.
+
+Mental model: think of `record_turn` like git commits. You commit at the end of a unit of work, not in the middle. The unit here is one assistant turn (everything between two consecutive user messages). Emit one `record_turn` per content block the turn produced, in order, then move on.
+
+The user can close Claude Code and come back; if you held up your side of the contract, the wizard ChatPane reopens with full history. If you skipped turns, those holes are permanent.
 
 ## Don't
 
@@ -363,7 +370,8 @@ Every coding-mode turn is captured by a hook → `record_turn` → wizard's pers
 - Don't paraphrase brainstorm questions — pass through verbatim.
 - Don't track mode yourself — the response tells you.
 - Don't re-read the PRD from disk during coding (it's in the kickoff; or `coding_workspace__get_prd` if compaction dropped it).
-- Don't use native tools while in coding mode — the hook refuses.
+- Don't use native tools while in coding mode — they're blocked; use the `coding_workspace__*` redirects in the error.
+- Don't skip `record_turn` — your turn is invisible to the wizard if you do, and the gap is permanent.
 - Don't `npm run build` — the launcher handles it.
 - Don't drift into Catalyst-internals work while a build is live.
 - Don't go silent after `complete_build` — URLs first, then menu.
