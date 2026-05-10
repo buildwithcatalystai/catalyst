@@ -169,22 +169,56 @@ def _emit_deny(reason: str) -> int:
     return 0
 
 
+def _debug_log(line: str) -> None:
+    """Diagnostic — every hook invocation appends a single line to
+    ~/.claude/state/catalyst-hook-debug.log. Best-effort, never raise."""
+    try:
+        debug_path = Path.home() / ".claude" / "state" / "catalyst-hook-debug.log"
+        debug_path.parent.mkdir(parents=True, exist_ok=True)
+        with debug_path.open("a") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
+    except Exception:
+        pass
+
+
 def main() -> int:
     raw = sys.stdin.read()
     try:
         event = json.loads(raw) if raw.strip() else {}
     except Exception:
+        _debug_log(f"PARSE_FAIL raw_len={len(raw)} raw_head={raw[:80]!r}")
         return 0  # malformed input — don't block
 
     cc_session_id = (event.get("session_id") or "").strip()
     tool_name = event.get("tool_name", "") or ""
     sentinel = _read_sentinel()
+    is_cat = _is_catalyst_mcp_tool(tool_name)
+    _debug_log(
+        f"FIRED tool={tool_name!r} cc={cc_session_id[:8]} "
+        f"is_catalyst={is_cat} sentinel_exists={bool(sentinel)} "
+        f"sentinel_owner={(sentinel.get('cc_session_id','') or '')[:8]!r}"
+    )
+
+    # ── Case 0: end / abandon_build always wipes the local sentinel ─────
+    # The remote MCP server's `end` tool can clear its own state but cannot
+    # reach the user's local sentinel — so even after a successful end call
+    # the next ensure_auth would still see the dead owner and refuse.
+    # Delete the sentinel BEFORE allowing the call through. Idempotent —
+    # safe to fire from any tab (the cross-tab allowlist covers `end` and
+    # `abandon_build` for exactly this reason).
+    if is_cat and _bare_catalyst_tool(tool_name) in {"end", "abandon_build"}:
+        try:
+            SENTINEL_PATH.unlink(missing_ok=True)
+            _debug_log(f"  → DELETED local sentinel (end/abandon by cc={cc_session_id[:8]})")
+        except Exception as exc:
+            _debug_log(f"  → sentinel unlink failed: {exc}")
+        return 0  # allow the tool call to proceed
 
     # ── Case 1: no sentinel yet ─────────────────────────────────────────
     # Tab registration happens on the first ``mcp__catalyst-mcp__*`` call.
     # Other tools (no catalyst yet) just pass through.
     if not sentinel:
-        if cc_session_id and _is_catalyst_mcp_tool(tool_name):
+        if cc_session_id and is_cat:
             _write_sentinel({
                 "cc_session_id": cc_session_id,
                 "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -193,6 +227,9 @@ def main() -> int:
                 "gen_stream_id": "",
                 "mode": "menu",
             })
+            _debug_log(f"  → CLAIMED sentinel cc={cc_session_id[:8]}")
+        else:
+            _debug_log(f"  → no claim (cc empty? {not cc_session_id} | not catalyst tool? {not is_cat})")
         return 0
 
     owner_cc_id = (sentinel.get("cc_session_id") or "").strip()
