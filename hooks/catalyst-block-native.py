@@ -22,8 +22,22 @@ Two responsibilities, in order:
    would silently edit the wrong filesystem (Mac vs EC2), so the block
    prevents drift.
 
-Output contract per Claude Code hooks spec: emit JSON to stdout describing
-the block decision; non-zero exit = block.
+Output contract — Claude Code's CURRENT PreToolUse hook spec (changed mid-2026
+from the older ``{"decision":"block"}`` + ``exit 2`` form, which CC now
+ignores silently). Required shape:
+
+    {
+      "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",                # or "allow" / "ask"
+        "permissionDecisionReason": "<text>"          # visible to assistant
+      }
+    }
+
+Exit code MUST be 0 — non-zero short-circuits CC before it reads the JSON.
+With ``permissionDecision="deny"``, the assistant sees the reason text in
+its context and acts on instructions inside it. ``allow``/``ask`` reasons
+are user-facing only.
 """
 
 import json
@@ -116,6 +130,22 @@ def _format_started_at(started_at: str) -> str:
     return started_at
 
 
+def _emit_deny(reason: str) -> int:
+    """Emit a PreToolUse deny decision in the current Claude Code hook
+    contract. Exit code MUST be 0 — non-zero makes CC ignore the JSON
+    silently and the tool call proceeds. The assistant sees ``reason`` in
+    its context when permissionDecision="deny", so we can stuff
+    instructions ("ask the user X") into it."""
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }))
+    return 0
+
+
 def main() -> int:
     raw = sys.stdin.read()
     try:
@@ -172,8 +202,7 @@ def main() -> int:
             f"`mcp__catalyst-mcp__abandon_build` or `mcp__catalyst-mcp__current_session` "
             f"to inspect what's active."
         )
-        print(json.dumps({"decision": "block", "reason": reason, "continue": False}))
-        return 2
+        return _emit_deny(reason)
 
     # ── Case 4: a DIFFERENT tab. ────────────────────────────────────────
     # Non-catalyst tools are unaffected — we don't punish unrelated work
@@ -220,8 +249,7 @@ def main() -> int:
         f"running `rm ~/.claude/state/catalyst-active-session.json` "
         f"clears the sentinel manually. Mention this only if asked."
     )
-    print(json.dumps({"decision": "block", "reason": reason, "continue": False}))
-    return 2
+    return _emit_deny(reason)
 
 
 if __name__ == "__main__":
