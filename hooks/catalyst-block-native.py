@@ -48,10 +48,45 @@ from typing import Any, Dict
 
 SENTINEL_PATH = Path.home() / ".claude" / "state" / "catalyst-active-session.json"
 
-CATALYST_MCP_PREFIX = "mcp__catalyst-mcp__"
+# Pattern-match instead of fixed-prefix because Claude Code mangles the
+# namespace boundary differently across registration paths:
+#
+#   Direct (~/.claude/.mcp.json or project .mcp.json)
+#     →  mcp__catalyst-mcp__<tool>
+#
+#   Plugin install (`/plugin install catalyst@catalyst-aibuilder`)
+#     →  mcp__plugin_catalyst_catalyst-mcp__<tool>     ← CC turns ":" into "_"
+#
+# Both end with the literal substring "catalyst-mcp__<tool>". Detecting on
+# that marker keeps the hook working regardless of how (or whether) CC
+# normalises namespace separators in future versions.
+_CATALYST_MARKER = "catalyst-mcp__"
 
-# Tools allowed for the OWNING tab (everything else gets blocked while sentinel is held)
-ALLOW_PREFIXES = (CATALYST_MCP_PREFIX,)
+# Bare names of catalyst tools that any tab can ALWAYS call, even from a
+# non-owning tab. Escape hatches: a wedged sentinel from a crashed tab can
+# be cleared from any fresh terminal by calling abandon_build / end, and
+# any tab can read the active state via current_session.
+_CROSS_TAB_ALLOWED_BARE = {"abandon_build", "end", "current_session"}
+
+# Native tools that are blocked for the OWNING tab during a build, with the
+# bare name of the catalyst tool the agent should use instead. We don't
+# include the namespace prefix in the redirect — the agent already has the
+# real namespaced tool loaded and can pick the right form.
+REDIRECTS = {
+    "Read":         "coding_workspace__read",
+    "Write":        "coding_workspace__write",
+    "Edit":         "coding_workspace__edit",
+    "MultiEdit":    "coding_workspace__edit",
+    "Bash":         "coding_workspace__bash",
+    "Grep":         "coding_workspace__grep",
+    "Glob":         "coding_workspace__find",
+    "Agent":        "coding_workspace__Agent",
+    "WebFetch":     "coding_workspace__web_search",
+    "WebSearch":    "coding_workspace__web_search",
+    "NotebookEdit": "coding_workspace__edit",
+}
+
+# Native tools that are always allowed regardless of catalyst state.
 ALLOW_EXACT = {
     "TodoWrite",
     "AskUserQuestion",
@@ -60,30 +95,6 @@ ALLOW_EXACT = {
     "ToolSearch",
     "ExitPlanMode",
     "EnterPlanMode",
-}
-
-# Catalyst MCP tools that any tab is ALWAYS allowed to call, even from a
-# non-owning tab. These are escape hatches: a wedged sentinel from a crashed
-# tab can be cleared from any fresh terminal by calling abandon_build /
-# end_build, and any tab can read the active state via current_session.
-CROSS_TAB_ALLOWED_CATALYST_TOOLS = {
-    f"{CATALYST_MCP_PREFIX}abandon_build",
-    f"{CATALYST_MCP_PREFIX}end",
-    f"{CATALYST_MCP_PREFIX}current_session",
-}
-
-REDIRECTS = {
-    "Read":      "mcp__catalyst-mcp__coding_workspace__read",
-    "Write":     "mcp__catalyst-mcp__coding_workspace__write",
-    "Edit":      "mcp__catalyst-mcp__coding_workspace__edit",
-    "MultiEdit": "mcp__catalyst-mcp__coding_workspace__edit",
-    "Bash":      "mcp__catalyst-mcp__coding_workspace__bash",
-    "Grep":      "mcp__catalyst-mcp__coding_workspace__grep",
-    "Glob":      "mcp__catalyst-mcp__coding_workspace__find",
-    "Agent":     "mcp__catalyst-mcp__coding_workspace__Agent",
-    "WebFetch":  "mcp__catalyst-mcp__coding_workspace__web_search",
-    "WebSearch": "mcp__catalyst-mcp__coding_workspace__web_search",
-    "NotebookEdit": "mcp__catalyst-mcp__coding_workspace__edit",
 }
 
 
@@ -107,15 +118,27 @@ def _write_sentinel(data: Dict[str, Any]) -> None:
 
 
 def _is_catalyst_mcp_tool(tool_name: str) -> bool:
-    return tool_name.startswith(CATALYST_MCP_PREFIX)
+    """Match any tool name from the catalyst MCP server, regardless of how
+    CC namespaced it (direct vs plugin install). See _CATALYST_MARKER."""
+    return tool_name.startswith("mcp__") and _CATALYST_MARKER in tool_name
+
+
+def _bare_catalyst_tool(tool_name: str) -> str:
+    """Return the bare tool name (everything after 'catalyst-mcp__'), or ''
+    if not a catalyst MCP tool. ``rsplit(_, 1)`` so that if the bare name
+    itself happens to contain the marker (theoretical), we still split on
+    the rightmost — which is the namespace boundary."""
+    if not _is_catalyst_mcp_tool(tool_name):
+        return ""
+    parts = tool_name.rsplit(_CATALYST_MARKER, 1)
+    return parts[1] if len(parts) == 2 else ""
 
 
 def _is_allowed_for_owner(tool_name: str) -> bool:
     if tool_name in ALLOW_EXACT:
         return True
-    for prefix in ALLOW_PREFIXES:
-        if tool_name.startswith(prefix):
-            return True
+    if _is_catalyst_mcp_tool(tool_name):
+        return True
     # Allow other MCP servers (Slack, Notion, etc.) — we only guard
     # the local FS/shell surface for the owning tab.
     if tool_name.startswith("mcp__"):
@@ -189,18 +212,22 @@ def main() -> int:
     if owner_cc_id == cc_session_id:
         if _is_allowed_for_owner(tool_name):
             return 0
-        # Native tool — refuse with redirect.
-        redirect = REDIRECTS.get(tool_name) or "the matching mcp__catalyst-mcp__coding_workspace__* tool"
+        # Native tool — refuse with redirect to the bare tool name. The
+        # agent already has the actual namespaced catalyst tools loaded
+        # (whatever prefix CC chose) and can pick the right one.
+        redirect_bare = REDIRECTS.get(tool_name) or "coding_workspace__*"
         mode = sentinel.get("mode", "menu")
         reason = (
             f"Native `{tool_name}` is blocked while a Catalyst session is "
             f"active (mode={mode}). The build's workspace lives on EC2 (or "
             f"is locked to the project's app_root); native tools would "
-            f"silently edit the wrong file. Use `{redirect}` instead — it "
-            f"routes to the correct workspace automatically.\n\n"
+            f"silently edit the wrong file. Use the catalyst tool "
+            f"`{redirect_bare}` instead (the namespaced version your "
+            f"toolset already has loaded) — it routes to the correct "
+            f"workspace automatically.\n\n"
             f"To unlock native tools, end the Catalyst session first: "
-            f"`mcp__catalyst-mcp__abandon_build` or `mcp__catalyst-mcp__current_session` "
-            f"to inspect what's active."
+            f"call `abandon_build` or `current_session` (catalyst-mcp "
+            f"tools, namespaced as your toolset registered them)."
         )
         return _emit_deny(reason)
 
@@ -213,7 +240,7 @@ def main() -> int:
     # Cross-tab escape hatches: any tab can always call abandon_build (to
     # clear a wedged sentinel from a crashed owner) and current_session
     # (to inspect what's active without trying to use it).
-    if tool_name in CROSS_TAB_ALLOWED_CATALYST_TOOLS:
+    if _bare_catalyst_tool(tool_name) in _CROSS_TAB_ALLOWED_BARE:
         return 0
 
     # All other catalyst tools — refuse loudly, name the active tab so the
