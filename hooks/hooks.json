@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/catalyst-event-sink.sh",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/hook_record.py",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/catalyst-event-sink.sh",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/hook_record.py",
             "timeout": 10
           }
         ]
