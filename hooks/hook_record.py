@@ -1288,23 +1288,55 @@ def _post_auto_complete(
     """POST to /api/sessions/{id}/auto-complete. Mirrors _post_turn's failure
     handling — best-effort, never raises.
 
-    NOTE: Still uses the legacy X-Catalyst-Mcp-Secret header. Auto-complete
-    fires once per build (when the Stop hook detects the completion JSON)
-    and the events_jwt may not be valid in this moment — `complete_build`
-    flips the row's status to `completed`, after which events_jwt-backed
-    /api/events/record refuses writes. Migrating this surface to a
-    separate "completion JWT" or letting the events_jwt route accept
-    completion notifications is a follow-up cleanup.
+    Auth: same events_jwt the rest of the hook uses. The backend's
+    /auto-complete route accepts ``Authorization: Bearer <events_jwt>``
+    with a session_id-claim-vs-path check (same as /api/events/record).
+
+    Silent no-op when:
+      - events_jwt file is missing (we're not in coding mode — the user
+        emitted a completion JSON without ever entering coding; rare),
+      - file's session_id doesn't match the path session_id (stale JWT
+        from a previous build).
 
     When ``ctx`` is supplied, records the HTTP code + duration onto it
     for the final summary line.
     """
+    creds = _read_events_jwt()
+    if not creds:
+        # No events_jwt — can't authenticate. Auto-complete is a safety net;
+        # the agent's own `complete_build` call is the canonical path and
+        # is unaffected by this no-op.
+        if ctx is not None:
+            ctx.has_events_jwt = "no"
+        return False
+
+    jwt_token = (creds.get("events_jwt") or "").strip()
+    file_sid = (creds.get("session_id") or "").strip()
+    if not jwt_token or not file_sid:
+        _log_warn(ctx, "events_jwt file present but malformed: %r", creds)
+        if ctx is not None:
+            ctx.has_events_jwt = "malformed"
+        return False
+
+    if file_sid != session_id:
+        _log_warn(
+            ctx,
+            "events_jwt session mismatch for auto-complete: file=%s path=%s",
+            file_sid[:8], session_id[:8],
+        )
+        if ctx is not None:
+            ctx.has_events_jwt = "mismatch"
+        return False
+
+    if ctx is not None:
+        ctx.has_events_jwt = "yes"
+
     url = f"{backend_url.rstrip('/')}/api/sessions/{session_id}/auto-complete"
     body = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    secret = _resolve_mcp_secret()
-    if secret:
-        headers["X-Catalyst-Mcp-Secret"] = secret
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {jwt_token}",
+    }
     req = urlrequest.Request(url, data=body, headers=headers, method="POST")
     t0 = time.monotonic()
     http_code = 0
