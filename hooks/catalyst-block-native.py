@@ -64,9 +64,16 @@ _CATALYST_MARKER = "catalyst-mcp__"
 
 # Bare names of catalyst tools that any tab can ALWAYS call, even from a
 # non-owning tab. Escape hatches: a wedged sentinel from a crashed tab can
-# be cleared from any fresh terminal by calling abandon_build / end, and
-# any tab can read the active state via current_session.
-_CROSS_TAB_ALLOWED_BARE = {"abandon_build", "end", "current_session"}
+# be cleared from any fresh terminal by calling abandon_build / end / logout,
+# and any tab can read the active state via current_session.
+_CROSS_TAB_ALLOWED_BARE = {"abandon_build", "end", "logout", "current_session"}
+
+# Bare names that wipe the local sentinel + events_jwt BEFORE the call goes
+# through. Server-side semantics differ (`end`/`abandon_build` mark the
+# wizard row as abandoned; `logout` is non-destructive on the server), but
+# all three free the local tab — so a fresh sign-in or a different user can
+# claim cleanly from this tab without colliding with the previous owner.
+_LOCAL_WIPE_BARE = {"abandon_build", "end", "logout"}
 
 # Native tools that are blocked for the OWNING tab during a build, with the
 # bare name of the catalyst tool the agent should use instead. We don't
@@ -199,19 +206,31 @@ def main() -> int:
         f"sentinel_owner={(sentinel.get('cc_session_id','') or '')[:8]!r}"
     )
 
-    # ── Case 0: end / abandon_build always wipes the local sentinel ─────
-    # The remote MCP server's `end` tool can clear its own state but cannot
-    # reach the user's local sentinel — so even after a successful end call
-    # the next ensure_auth would still see the dead owner and refuse.
-    # Delete the sentinel BEFORE allowing the call through. Idempotent —
-    # safe to fire from any tab (the cross-tab allowlist covers `end` and
-    # `abandon_build` for exactly this reason).
-    if is_cat and _bare_catalyst_tool(tool_name) in {"end", "abandon_build"}:
+    # ── Case 0: end / abandon_build / logout wipes the local sentinel ───
+    # The remote MCP server's `end`/`logout` tools manage their own state but
+    # cannot reach the user's local sentinel — so even after a successful
+    # call the next ensure_auth would still see the dead owner and refuse.
+    # Delete the sentinel + events_jwt BEFORE allowing the call through.
+    # Idempotent — safe to fire from any tab (the cross-tab allowlist covers
+    # all three bare names for exactly this reason).
+    #
+    # Server-side semantics differ:
+    #   - `end` / `abandon_build`: marks wizard row as abandoned (destructive)
+    #   - `logout`: signs the user out but preserves all sessions (resumable)
+    # Local effect is identical: tab is freed for the next sign-in.
+    bare_name = _bare_catalyst_tool(tool_name) if is_cat else ""
+    if is_cat and bare_name in _LOCAL_WIPE_BARE:
+        events_jwt_path = Path.home() / ".claude" / "state" / "catalyst-events-jwt.json"
         try:
             SENTINEL_PATH.unlink(missing_ok=True)
-            _debug_log(f"  → DELETED local sentinel (end/abandon by cc={cc_session_id[:8]})")
+            _debug_log(f"  → DELETED local sentinel ({bare_name} by cc={cc_session_id[:8]})")
         except Exception as exc:
             _debug_log(f"  → sentinel unlink failed: {exc}")
+        try:
+            events_jwt_path.unlink(missing_ok=True)
+            _debug_log(f"  → DELETED events_jwt ({bare_name} by cc={cc_session_id[:8]})")
+        except Exception as exc:
+            _debug_log(f"  → events_jwt unlink failed: {exc}")
         return 0  # allow the tool call to proceed
 
     # ── Case 1: no sentinel yet ─────────────────────────────────────────

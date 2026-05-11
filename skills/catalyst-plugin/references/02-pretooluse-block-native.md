@@ -78,10 +78,18 @@ These don't touch the filesystem.
 ### CROSS_TAB_ALLOWED_BARE ([catalyst-block-native.py:69](../../../codeGen/catalyst-plugin/hooks/catalyst-block-native.py#L69))
 
 ```python
-_CROSS_TAB_ALLOWED_BARE = {"abandon_build", "end", "current_session"}
+_CROSS_TAB_ALLOWED_BARE = {"abandon_build", "end", "logout", "current_session"}
 ```
 
 Even from a non-owning tab, these always work. They're the escape hatches for a wedged sentinel from a crashed owner tab.
+
+### _LOCAL_WIPE_BARE
+
+```python
+_LOCAL_WIPE_BARE = {"abandon_build", "end", "logout"}
+```
+
+Tools whose PreToolUse fire **unlinks the sentinel + events_jwt BEFORE the call goes through**. Server-side semantics differ (`end`/`abandon_build` mark the wizard row as abandoned; `logout` is non-destructive on the server) but local effect is identical — tab freed for the next sign-in.
 
 ## Sentinel claim on first call
 
