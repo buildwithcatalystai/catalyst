@@ -1244,6 +1244,8 @@ def _run(ctx: _RunCtx, stream) -> int:
     # send_message, start_build, claim_phase_generate, current_session),
     # enrich the local sentinel from the response BEFORE the
     # missing-session-id check.
+    prev_mode = (sentinel.get("mode") or "").strip()
+    prev_sid = (sentinel.get("session_id") or "").strip()
     if ctx.hook == "PostToolUse":
         _enrich_sentinel_from_response(
             event.get("tool_name") or "", event.get("tool_response"),
@@ -1258,6 +1260,43 @@ def _run(ctx: _RunCtx, stream) -> int:
         ctx.noop_reason = "sentinel-missing-session-id"
         return 0
     ctx.session = session_id[:8]
+
+    # Gate 2: only sync when sentinel is in coding mode. Brainstorm /
+    # db_finalize / menu phases persist natively via the wizard's
+    # LangGraph; the hook has nothing useful to record there.
+    new_mode = (sentinel.get("mode") or "").strip()
+    if new_mode not in ("coding", "vibe_code"):
+        ctx.noop_reason = f"mode-not-coding(mode={new_mode or 'unset'})"
+        return 0
+
+    # First-time coding entry on this transcript: fast-forward the offset
+    # to the current EOF so pre-coding narration (menu banter, project
+    # selection, etc.) doesn't get scooped up by the first
+    # _latest_turn_text scan. Identified by the sentinel transition:
+    # either session_id flipped from empty → set, OR mode flipped into
+    # coding from anything else (menu, brainstorm, ...).
+    became_coding = (
+        prev_mode not in ("coding", "vibe_code")
+        or not prev_sid
+        or prev_sid != session_id
+    )
+    if became_coding:
+        transcript_path = event.get("transcript_path")
+        if transcript_path:
+            try:
+                eof = len(
+                    Path(transcript_path)
+                    .read_text(encoding="utf-8", errors="replace")
+                    .splitlines()
+                )
+                _write_offset(transcript_path, eof)
+                logger.info(
+                    "transcript offset fast-forwarded to %d on coding entry "
+                    "(session=%s, prev_mode=%s)",
+                    eof, session_id[:8], prev_mode or "unset",
+                )
+            except Exception as exc:
+                logger.warning("offset fast-forward failed: %s", exc)
 
     if ctx.hook == "PostToolUse":
         records = _translate_post_tool(event)
