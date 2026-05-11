@@ -336,10 +336,41 @@ def _bare_catalyst_tool(tool_name: str) -> str:
 
 def _parse_tool_response(response: Any) -> Dict[str, Any]:
     """Unwrap an MCP tool response into the JSON dict the tool returned.
-    MCP shape: {"content": [{"type":"text","text":"<json>"}]}. Falls back
-    to treating the response itself as the dict when not wrapped."""
+
+    Accepts every shape Claude Code's hook payload has used for MCP tool
+    responses across versions:
+
+      1. Bare content list (current CC contract):
+             [{"type": "text", "text": "<json>"}]
+         CC passes the content array directly as ``tool_response`` for
+         ``mcp__*`` tools — there is no enclosing dict.
+
+      2. Wrapped dict (older/spec form):
+             {"content": [{"type": "text", "text": "<json>"}]}
+
+      3. Bare dict (some non-MCP hooks):
+             {"key": "value", ...}
+
+    Returns the parsed JSON dict on success, ``{}`` if nothing usable
+    can be extracted. Never raises.
+    """
+    # Shape 1: bare content list.
+    if isinstance(response, list):
+        for block in response:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text = block.get("text", "")
+                try:
+                    parsed = json.loads(text)
+                    if isinstance(parsed, dict):
+                        return parsed
+                except Exception:
+                    continue
+        return {}
+
     if not isinstance(response, dict):
         return {}
+
+    # Shape 2: wrapped dict with `content` list.
     content = response.get("content")
     if isinstance(content, list):
         for block in content:
@@ -351,7 +382,11 @@ def _parse_tool_response(response: Any) -> Dict[str, Any]:
                         return parsed
                 except Exception:
                     continue
-    return response  # already a dict, use directly
+
+    # Shape 3: response is itself the dict (or shape 2 fell through with
+    # no parseable text block — return the wrapper, which may have
+    # session_id / app_root / etc. on it directly).
+    return response
 
 
 def _maybe_update_local_sentinel(payload: Dict[str, Any]) -> None:
