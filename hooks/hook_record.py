@@ -649,6 +649,60 @@ def _bare_phase4_name(tool_name: str) -> str:
     return tool_name.rsplit(_PHASE4_MARKER, 1)[1]
 
 
+def _unwrap_content_blocks(blocks: Any) -> Optional[str]:
+    """Return the joined text from a list of MCP content blocks.
+
+    MCP tools return ``[{"type": "text", "text": "..."}, ...]`` for textual
+    output. This helper pulls out the ``text`` fields and joins them; returns
+    ``None`` when ``blocks`` isn't a recognisable content-block list so the
+    caller can fall back to ``json.dumps``.
+    """
+    if not isinstance(blocks, list):
+        return None
+    parts = [
+        b.get("text", "")
+        for b in blocks
+        if isinstance(b, dict) and b.get("type") == "text"
+    ]
+    if not parts:
+        return None
+    return "\n".join(parts)
+
+
+def _normalise_tool_response(response: Any) -> str:
+    """Coerce a Claude Code tool response into a human-readable string.
+
+    Handles three shapes consistently:
+      - ``[{"type":"text","text":"..."}, ...]`` (top-level list of MCP
+        content blocks — what coding_workspace tools usually return)
+      - ``{"content": [...content blocks...]}`` (dict-wrapped version)
+      - ``{"content": "string"}`` or any other dict
+      - bare string / int / etc.
+
+    The previous code only handled the dict-wrapped case; top-level lists
+    fell into ``str(response)`` which rendered the Python repr
+    (``[{'type': 'text', 'text': '...'}]``) verbatim in the wizard chat.
+    """
+    if isinstance(response, list):
+        unwrapped = _unwrap_content_blocks(response)
+        if unwrapped is not None:
+            return unwrapped
+        return json.dumps(response, default=str)
+    if isinstance(response, dict):
+        inner = response.get("content")
+        if isinstance(inner, list):
+            unwrapped = _unwrap_content_blocks(inner)
+            if unwrapped is not None:
+                return unwrapped
+            return json.dumps(response, default=str)
+        if isinstance(inner, str):
+            return inner
+        return json.dumps(response, default=str)
+    if isinstance(response, str):
+        return response
+    return str(response)
+
+
 def _translate_post_tool(event: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     """One PostToolUse → emits any pending assistant text/thinking the
     model spoke just before this tool call, then a tool_call + tool_result
@@ -673,18 +727,7 @@ def _translate_post_tool(event: Dict[str, Any]) -> Optional[List[Dict[str, Any]]
 
     args = event.get("tool_input") or {}
     response = event.get("tool_response") or {}
-    if isinstance(response, dict):
-        result = response.get("content")
-        if isinstance(result, list):
-            parts = [
-                b.get("text", "") for b in result
-                if isinstance(b, dict) and b.get("type") == "text"
-            ]
-            result = "\n".join(parts)
-        elif not isinstance(result, str):
-            result = json.dumps(response, default=str)
-    else:
-        result = str(response)
+    result = _normalise_tool_response(response)
 
     bare = _bare_phase4_name(tool_name) if _is_phase4_tool(tool_name) else tool_name
 
