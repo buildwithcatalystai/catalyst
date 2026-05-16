@@ -919,7 +919,24 @@ def _format_label(name: str, args: Dict[str, Any]) -> str:
         if name == "todo_write":
             return f"todos: {len(args.get('todos', []))} items"
         if name == "get_table_detail":
+            # The tool's actual arg is `table_names: List[str]` — looking up
+            # `table_name` (singular) always missed and rendered "DB: ?". Read
+            # the list first; fall back to legacy singular if anyone ever
+            # sends it that way.
+            names = args.get("table_names")
+            if isinstance(names, list) and names:
+                head = str(names[0])
+                tail = f" (+{len(names) - 1})" if len(names) > 1 else ""
+                return f"DB: {head}{tail}"
             return f"DB: {args.get('table_name', '?')}"
+        if name == "run_select_query":
+            q = (args.get("query") or "").strip().splitlines()[0] if args.get("query") else ""
+            preview = (q[:80] + "…") if len(q) > 80 else q
+            return f"SQL: {preview or '?'}"
+        if name == "run_python":
+            code = (args.get("code") or "").strip().splitlines()[0] if args.get("code") else ""
+            preview = (code[:80] + "…") if len(code) > 80 else code
+            return f"py: {preview or '?'}"
         return name
     except Exception:
         return name
