@@ -20,6 +20,7 @@ The PRD and repo map are inlined in `kickoff_message`. Don't re-fetch them with 
 2. **For data work, ask the database knowledge base first.**
    - `coding_workspace__get_existing_tables_summary` lists every existing table with its purpose and relationships.
    - `coding_workspace__get_table_detail(table_name)` gives exact column names. **Column names cannot be inferred** — call this before writing any code that touches columns.
+   - `coding_workspace__run_select_query("SELECT ... LIMIT N")` runs a read-only `SELECT` against the user's live DB (mysql / postgres / redshift, via-cloud or direct). Use it to verify a table actually has rows, to confirm an enum's distinct values, or to sanity-check a query before committing code that depends on its shape. Validator-enforced rules: SELECT/WITH/EXPLAIN only, mandatory `LIMIT` clause, 50-row cap on output.
 3. **For external API integrations, ask the API knowledge base.**
    - `coding_workspace__get_existing_apis_summary` shows known endpoints and auth context.
    - `coding_workspace__get_api_endpoint_detail(endpoints=[{method, path}, ...])` returns full request / response shapes for the endpoints you'll call.
@@ -27,8 +28,9 @@ The PRD and repo map are inlined in `kickoff_message`. Don't re-fetch them with 
 5. **Write code via `coding_workspace__write` (creates) and `coding_workspace__edit` (modifies).** All paths are relative to `app_root`.
 6. **Run shell via `coding_workspace__bash`.** It runs in the project workspace by default. Don't reinstall dependencies — the scaffold already did. Don't kick off long-running builds — the dev server is already up.
 7. **Search via `coding_workspace__grep` (text) or `coding_workspace__find` (filenames).** Use these instead of running `rg` through `coding_workspace__bash` — the dedicated tools handle output budgets correctly.
-8. **Sub-agent for parallel investigation** via `coding_workspace__Agent` — useful when you need to read several files quickly to answer one question.
-9. **End with the completion JSON.** A single line: `{"status":"completed","summary":"<one-paragraph plain-language summary of what you built>"}`. The skill picks this up automatically and finalizes the build (runs migrations, starts services, hands the user back the live URLs). The line itself never reaches the user-facing transcript.
+8. **Compute via `coding_workspace__run_python`.** Short-lived Python sandbox (15 s cap, stdlib + `pandas==2.3.2` + `numpy==2.2.6`) bound to the project root. Reach for it when you'd otherwise enumerate by hand and risk a wrong filter — set diffs, group-by, JSON validation, schema checks, dry-run of "what would this delete" before issuing a destructive write. Read-only by default. Prefer this over `coding_workspace__bash` + inline shell math.
+9. **Sub-agent for parallel investigation** via `coding_workspace__Agent` — useful when you need to read several files quickly to answer one question.
+10. **End with the completion JSON.** A single line: `{"status":"completed","summary":"<one-paragraph plain-language summary of what you built>"}`. The skill picks this up automatically and finalizes the build (runs migrations, starts services, hands the user back the live URLs). The line itself never reaches the user-facing transcript.
 
 ## Validation before declaring done
 
