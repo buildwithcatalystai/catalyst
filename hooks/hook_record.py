@@ -904,16 +904,52 @@ def _latest_turn_text(path: str) -> tuple[str, str]:
     )
 
 
+def _short_path(path: str) -> str:
+    """Strip the EC2 project-root prefix from a path so the wizard chat
+    shows project-relative paths (mirrors ``agent_runner._short_path`` in
+    the wizard backend). Cases handled:
+
+      /home/ubuntu/projects/<sid>/backend/app/main.py → backend/app/main.py
+      /Users/.../output/<id>/start.sh                 → start.sh
+      projects/<uuid>/frontend/page.tsx               → frontend/page.tsx
+      <uuid>/start.sh                                 → start.sh
+
+    Falls back to last 3 segments for unrecognised absolute paths.
+    """
+    import re
+    s = str(path or "")
+    if not s:
+        return ""
+    m = re.search(r"/(?:output|projects)/[^/]+/(.+)$", s)
+    if m:
+        return m.group(1)
+    m = re.match(r"^(?:projects/)?([0-9a-f-]{8,})/(.+)$", s)
+    if m:
+        return m.group(2)
+    parts = s.rstrip("/").split("/")
+    return "/".join(parts[-3:]) if len(parts) > 3 else s
+
+
 def _format_label(name: str, args: Dict[str, Any]) -> str:
     try:
         if name in ("read", "write", "edit"):
-            return f"{name.capitalize()}: {args.get('path', '?')}"
+            return f"{name.capitalize()}: {_short_path(args.get('path', '?'))}"
         if name == "bash":
-            return f"$ {args.get('command', '')[:80]}"
+            cmd = str(args.get("command", "") or "")[:120]
+            # Drop a leading ``cd <abs path> && `` prefix that the agent
+            # routinely prepends; show only the actual command.
+            if " && " in cmd:
+                head, tail = cmd.split(" && ", 1)
+                if head.strip().startswith("cd "):
+                    cmd = tail
+            # Strip remaining absolute project paths inside the command.
+            import re
+            cmd = re.sub(r"/home/ubuntu/projects/[^/]+/", "", cmd)
+            return f"$ {cmd[:80]}"
         if name == "grep":
-            return f"grep: {args.get('pattern', '?')}"
+            return f"grep: {args.get('pattern', '?')} in {_short_path(args.get('path', '.'))}"
         if name == "find":
-            return f"find: {args.get('pattern', '?')}"
+            return f"find: {args.get('pattern', '?')} in {_short_path(args.get('path', '.'))}"
         if name == "Agent":
             return f"sub-agent: {args.get('description', 'investigation')[:60]}"
         if name == "todo_write":
