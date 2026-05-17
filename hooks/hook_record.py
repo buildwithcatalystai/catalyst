@@ -736,18 +736,21 @@ def _translate_post_tool(event: Dict[str, Any]) -> Optional[List[Dict[str, Any]]
 
     out: List[Dict[str, Any]] = []
 
-    # Pending text/thinking emitted between previous tool and this one.
+    # Pending text/thinking + per-turn usage emitted between previous tool
+    # and this one.
     transcript_path = event.get("transcript_path")
     if transcript_path:
         try:
-            thinking_text, assistant_text = _latest_turn_text(transcript_path)
+            thinking_text, assistant_text, turn_costs = _latest_turn_text(transcript_path)
         except Exception as exc:
             logger.warning("post_tool transcript parse failed: %s", exc)
-            thinking_text, assistant_text = "", ""
+            thinking_text, assistant_text, turn_costs = "", "", []
         if thinking_text:
             out.append({"kind": "thinking", "payload": {"text": thinking_text}})
         if assistant_text:
             out.append({"kind": "assistant_text", "payload": {"text": assistant_text}})
+        for tc in turn_costs:
+            out.append({"kind": "turn_cost", "payload": tc})
 
     out.extend([
         {
@@ -779,7 +782,7 @@ def _translate_stop(event: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     if not transcript_path:
         return None
     try:
-        thinking_text, assistant_text = _latest_turn_text(transcript_path)
+        thinking_text, assistant_text, turn_costs = _latest_turn_text(transcript_path)
     except Exception as exc:
         logger.warning("transcript parse failed: %s", exc)
         return None
@@ -789,6 +792,8 @@ def _translate_stop(event: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         out.append({"kind": "thinking", "payload": {"text": thinking_text}})
     if assistant_text:
         out.append({"kind": "assistant_text", "payload": {"text": assistant_text}})
+    for tc in turn_costs:
+        out.append({"kind": "turn_cost", "payload": tc})
 
     auto = _detect_completion_signal(assistant_text)
     if auto is not None:
@@ -872,9 +877,9 @@ def _write_offset(transcript_path: str, offset: int) -> None:
         logger.warning("offset write failed: %s", exc)
 
 
-def _latest_turn_text(path: str) -> tuple[str, str]:
-    """Extract assistant text + thinking that's accumulated since the last
-    Stop fire on this transcript.
+def _latest_turn_text(path: str) -> tuple[str, str, list]:
+    """Extract assistant text + thinking + per-turn token usage accumulated
+    since the last Stop fire on this transcript.
 
     Claude Code's autonomous loop emits a single agent "turn" as many JSONL
     entries: ``[text]``, ``[tool_use]``, then ``user/tool_result``, then
@@ -890,13 +895,22 @@ def _latest_turn_text(path: str) -> tuple[str, str]:
          for this transcript (file path → byte/line offset stored in
          ``catalyst-event-sink-offsets.json``).
       3. Walk forward through the unprocessed tail, collecting text +
-         thinking blocks from every ``role:"assistant"`` entry. Skip
-         ``[tool_use]`` blocks (those go through PostToolUse) and
-         ``role:"user"`` entries (real prompts AND tool_results).
+         thinking blocks AND ``message.usage`` from every
+         ``role:"assistant"`` entry. Skip ``[tool_use]`` blocks (those go
+         through PostToolUse) and ``role:"user"`` entries (real prompts
+         AND tool_results).
       4. After extraction, persist the new offset so the next Stop only
          picks up content emitted after this point.
 
-    Returns ``(thinking_text, assistant_text)``; either may be empty.
+    Anthropic's response shape always carries a ``usage`` block on
+    assistant messages with: ``input_tokens``, ``output_tokens``,
+    ``cache_creation_input_tokens``, ``cache_read_input_tokens``. CC's
+    transcript copies it verbatim — read it here so the wizard's cost-tab
+    can show cached/uncached/output token totals for CC-driven phase_gen.
+
+    Returns ``(thinking_text, assistant_text, turn_costs)`` where
+    ``turn_costs`` is a list of TurnTokens-shaped dicts (one per
+    assistant entry that had a usage block); any element may be empty.
     """
     try:
         lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
@@ -911,6 +925,7 @@ def _latest_turn_text(path: str) -> tuple[str, str]:
 
     text_parts: List[str] = []
     thinking_parts: List[str] = []
+    turn_costs: List[Dict[str, Any]] = []
     for line in lines[start:]:
         line = line.strip()
         if not line:
@@ -936,6 +951,19 @@ def _latest_turn_text(path: str) -> tuple[str, str]:
                     thinking_parts.append(block.get("thinking", ""))
         elif isinstance(content, str):
             text_parts.append(content)
+        # Per-turn token usage — verbatim from Anthropic's response.
+        # Shape matches pi_agent_core's TurnTokens so the wizard's
+        # cost-tab aggregator handles both sources uniformly.
+        usage = msg.get("usage")
+        if isinstance(usage, dict) and usage:
+            turn_costs.append({
+                "turn": len(turn_costs),
+                "input_tokens":          int(usage.get("input_tokens", 0) or 0),
+                "output_tokens":         int(usage.get("output_tokens", 0) or 0),
+                "cache_read_tokens":     int(usage.get("cache_read_input_tokens", 0) or 0),
+                "cache_creation_tokens": int(usage.get("cache_creation_input_tokens", 0) or 0),
+                "model": str(msg.get("model", "") or entry.get("model", "")),
+            })
 
     # Advance offset to end-of-file so the next Stop fire only sees new
     # entries appended after this point.
@@ -944,6 +972,7 @@ def _latest_turn_text(path: str) -> tuple[str, str]:
     return (
         "\n".join(t for t in thinking_parts if t).strip(),
         "\n".join(t for t in text_parts if t).strip(),
+        turn_costs,
     )
 
 
