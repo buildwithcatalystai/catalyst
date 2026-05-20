@@ -9,7 +9,8 @@ into them.
 ## Install
 
 ```sh
-/plugin install ashwiny66/catalyst
+/plugin marketplace add buildwithcatalystai/catalyst
+/plugin install catalyst@catalyst-aibuilder
 ```
 
 Then, in the directory where you'll use Catalyst (or your home),
@@ -43,9 +44,9 @@ cd catalyst-builder && ./start.sh
 
 ## Use
 
-```sh
-$ claude
-> /catalyst:build a logistics tracker for last-mile drivers
+```
+/catalyst
+/catalyst build *
 ```
 
 On first call, Claude Code will trigger an OAuth flow against your
