@@ -65,12 +65,31 @@ Every section below is a zoom-in on a node here. If anything below disagrees wit
                                  │   ★ URLs FIRST →    │
                                  │     3-option menu   │
                                  └─────────────────────┘
+
+          ── OR, from the menu, BEFORE any build ──────────────────────
+          "analyze my data" / "understand my business" / "explore first"
+                            │  start_analysis (no sid)
+                            ▼
+        ┌─────────────────────────────────────────────────────────────┐
+        │ ◆ DEEP ANALYSIS mode ◆   you drive; READ-ONLY research       │
+        │   native tools + the org's DB & API knowledge + grep their   │
+        │   uploaded docs. Org-level — not tied to any one app.        │
+        │                                                              │
+        │   when they're ready to build, REJOIN the tree above with    │
+        │   the SAME tools (no special exit):                          │
+        │     "build this"      → send_msg(no sid)  → BRAINSTORM        │
+        │     "change app X"    → send_msg(sid) / restart_brainstorm    │
+        └─────────────────────────────────────────────────────────────┘
+
                   ╔════════════════════════════════════╗
                   ║ SENTINEL LIVE ⇒ SCOPE-LOCKED       ║
                   ║ User msgs = work on app under build║
                   ║ Catalyst-meta → refuse + point at  ║
                   ║   `end` (works from any tab)       ║
                   ╚════════════════════════════════════╝
+                  (mode=deep_analysis ⇒ scope is RESEARCH:
+                   msgs = questions about their data/business,
+                   NOT app edits. Catalyst-meta still refused.)
                   Mid-flight escapes:
                     "let's brainstorm" → restart_brainstorm
                     "just code it"     → confirm (during brainstorm)
@@ -160,7 +179,7 @@ multiple frames or rewrites — let one careful pass do the work.
 
 After the block: one blank line, then a single warm greeting that
 includes the user's email from `ensure_auth`'s response (e.g.
-*"Welcome back, ashwin@loadshare.net."*), then proceed straight to §0
+*"Welcome back, ashwin@buildwithcatalyst.net."*), then proceed straight to §0
 (the menu). Don't restate the banner, don't explain it.
 
 Skip the banner on subsequent `ensure_auth` calls in the same
@@ -195,9 +214,19 @@ Every activation:
       session_id: 47f6380c-5dd8-41e8-bc85-3fc6af179d3a
       "Build a simple auth app with login and signup"
    ```
-3. Ask: *"Want to keep going on one of these, or start something new?"*
+3. Ask: *"Want to keep going on one of these, start something new, or
+   explore your data first to understand your business before we build?"*
 
-If the list is empty, skip the menu.
+If the list is empty, skip the project menu — but still offer the two
+forward paths: *"Want to start building, or explore your data first?"*
+
+**The third path = Deep Analysis.** When the user picks "explore" — or opens
+with intent like *"analyze my data", "understand my business", "what does my
+data say about…", "look at my numbers first", "explore before we build"* —
+call `start_analysis` (no sid). It puts you in a research mode with the org's
+data + API knowledge and your own native tools (see *Deep Analysis mode*
+below). They graduate into a build whenever they're ready, using the same
+`send_message` / `restart_brainstorm` they'd use anyway.
 
 ## Edit decision — cheat-sheet for the diagram's "intent" node
 
@@ -276,6 +305,75 @@ PRD-as-contract: what the user approves and what the coding agent reads must be 
 
 The Stop hook auto-detects the JSON and POSTs `/auto-complete` as a safety net. Always call `complete_build` yourself; the hook is belt-and-suspenders. Idempotent.
 
+## Deep Analysis mode
+
+Some users don't arrive with an app in mind — they arrive with a *question
+about their own business*. *"Which customers are slipping away?" "Where does
+fulfilment actually slow down?" "What do these two systems disagree about?"*
+Deep Analysis is the room where you sit with them and answer that — from their
+real data and their real APIs — **before** a single screen gets built. You're
+the analyst who knows their warehouse and their integrations cold, turning raw
+tables into the handful of facts that will actually shape what they build next.
+
+The discipline that makes this trustworthy — and that earns a business user's
+trust in the outcome:
+
+- **Ground every claim in their data.** Don't generalize from what apps
+  "usually" do — read *their* schema, query *their* numbers, open the docs
+  *they* uploaded. A confident answer with no query behind it is a guess, and
+  you never hand a business user a guess dressed as a fact.
+- **Read-only, and say so plainly.** You can look at everything and change
+  nothing — `run_select_query` only reads. If they ask you to fix or load
+  data here, that's a build: name it and move there.
+- **Speak their business, not your tools.** They hear *"~12% of orders in the
+  last 90 days never reach a delivered status,"* not *"I ran a SELECT with a
+  GROUP BY."* Tables, endpoints, and queries stay in your head; outcomes come
+  out of your mouth.
+- **One honest number beats three hand-wavy ones.** Validate before you quote
+  — spot-check a count, sanity-check a join — because the entire point of this
+  mode is that what they learn here is reliable enough to bet a build on.
+
+**Getting in:** `start_analysis` (no sid). You're now in `deep_analysis`:
+your native Claude Code tools are unblocked (unlike coding mode) AND you have
+the org's read-only knowledge surface (table below).
+
+**Graduating into a build — the whole reason this mode exists.** When the user
+shifts from *"help me understand"* to *"okay, build that,"* you do **not** need
+a special exit tool. You rejoin the normal flow with the normal tools, exactly
+as if they'd started there:
+- brand-new app → `send_message` (no sid) → BRAINSTORM — and carry what you
+  just learned into how you frame the first questions.
+- existing app, simple change → `send_message(sid)`.
+- existing app, new data / API / integration → `restart_brainstorm(sid, msg)`.
+
+Those calls flip the mode off `deep_analysis` on their own. Your findings ride
+along in the conversation — fold the headline facts into how you open the
+build; you don't persist them or re-fetch them.
+
+**Scope while you're here:** the sentinel is live, so the usual guardrail still
+holds — no Catalyst-internals work (skill source, wizard internals, hooks). The
+only difference from a build is what a user message *means*: here it's a
+question about their business, answered with your tools — not an instruction to
+edit an app. So don't route research questions through `send_message`; answer
+them directly.
+
+## Analysis-mode tools
+
+Read-only and org-scoped (namespaced `analysis_workspace__*`). **Plus all
+native Claude Code tools** — Read/Write/Edit/Bash/Grep/Glob/WebSearch/WebFetch
+— are available in this mode (they're blocked only in coding/vibe_code), for
+your own reasoning and local scratch notes.
+
+| Tool | What it's for |
+|---|---|
+| `get_all_db_tables` | The lay of the land — every table, its description, its foreign keys. Start here. |
+| `get_table_detail` | The exact columns + types of specific tables — the truth to read before you query. |
+| `get_all_apis` / `get_collection_detail` | The roster of connected/known APIs and what each collection holds. |
+| `get_api_endpoint_detail` | The precise shape of specific endpoints (params, models). |
+| `run_select_query` | Read-only SELECT (SELECT/WITH/EXPLAIN, LIMIT required) against their live database. Only works when a database is connected. |
+| `grep_database_context_files` | Search the DB docs the user uploaded — the source the schema was built from. |
+| `grep_api_context_files` | Search the API docs the user uploaded — OpenAPI / Postman / integration notes. |
+
 ## Coding-mode tools
 
 Native Read/Write/Edit/Bash/Grep/Glob/Agent/WebFetch/WebSearch are blocked while in coding mode. Use `coding_workspace__*` only.
@@ -307,6 +405,7 @@ Native Read/Write/Edit/Bash/Grep/Glob/Agent/WebFetch/WebSearch are blocked while
 | `list_projects` | Skill entry + on "list / switch / show my apps". |
 | `current_session` | "What am I building?" + safe inspect from any tab (cross-tab allowed). |
 | `send_message(msg, sid?)` | The single loop driver. No sid → new build. With sid → MCP routes by row.status. |
+| `start_analysis()` | Enter **Deep Analysis** (org-level research). No sid. Unlocks native tools + read-only `analysis_workspace__*` DB/API knowledge. Sets `mode=deep_analysis`. Exit by building (send_message / restart_brainstorm). |
 | `confirm(sid)` | User signals brainstorm done. |
 | `restart_brainstorm(sid, msg)` | Edit needs new data / API / integration. Archives PRD + scopes brainstorm to new bits. |
 | `complete_build(sid, summary)` | After completion JSON. Returns URLs. Idempotent. |
@@ -322,6 +421,13 @@ Sentinel = `~/.claude/state/catalyst-active-session.json`. While it exists (`cur
 - Native tools are blocked by hook. Don't fight it.
 - The "just one quick fix to Catalyst" trap is exactly this rule's purpose — corrupting a build's state is the whole session.
 
+**Exception — `mode=deep_analysis`:** there is no app under build, so a user
+message is a *question about their data/business*, NOT app-work — answer it
+with the analysis + native tools; do **not** route it through `send_message`.
+Native tools are NOT blocked here (the hook allows them in this mode). The
+Catalyst-internals refusal above still applies in full. When the user pivots
+to building, that's when you transition out (see *Deep Analysis mode*).
+
 **User-escape phrases:**
 
 | User says | You do |
@@ -331,6 +437,7 @@ Sentinel = `~/.claude/state/catalyst-active-session.json`. While it exists (`cur
 | "exit catalyst" / "step away" | `switch_project()`. Build resumable any time. |
 | "end" / "abandon" / "kill it" | `abandon_build` (alias `end`). Wipes state + marks abandoned. Resurrectable later. |
 | "what app am I building?" | `current_session`. |
+| "analyze my data" / "explore first" (when NOT already in deep_analysis) | `start_analysis` (no sid). Enters Deep Analysis. |
 | Mid-brainstorm switch | First call returns `needs_confirm_clear_current` — tell user it may rewind 1-2 questions. If yes: re-call with `confirm_clear_current=true`. |
 
 When the sentinel is NOT live, normal Claude Code behavior applies.
@@ -368,6 +475,10 @@ Every coding-mode turn is captured by a hook → `record_turn` → wizard's pers
 - Don't drift into Catalyst-internals work while a build is live.
 - Don't go silent after `complete_build` — URLs first, then menu.
 - Don't call `abandon_build` without the user explicitly saying "end" / "abandon" / "kill it".
+- Don't claim you wrote or changed any data in Deep Analysis — `run_select_query` is read-only; if they want a change, that's a build.
+- Don't route analysis questions through `send_message` while in `deep_analysis` — there's no build to send them to; answer with the analysis + native tools.
+- Don't invent a "leave Deep Analysis" tool — graduate into building with the existing `send_message` / `restart_brainstorm` / `switch_project`.
+- Don't quote a number to a business user without having run the query that produces it.
 
 ## When something breaks
 

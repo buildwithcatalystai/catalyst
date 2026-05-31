@@ -20,7 +20,9 @@ Two responsibilities, in order:
    ``Agent``/``WebFetch``/``WebSearch`` are refused with redirect messages
    pointing at the matching ``coding_workspace__*`` MCP tool. Native tools
    would silently edit the wrong filesystem (Mac vs EC2), so the block
-   prevents drift.
+   prevents drift. EXCEPTION: in ``mode=deep_analysis`` native tools are
+   ALLOWED — that mode is org-level research with no remote app workspace to
+   protect, so the wrong-filesystem hazard doesn't apply.
 
 Output contract — Claude Code's CURRENT PreToolUse hook spec (changed mid-2026
 from the older ``{"decision":"block"}`` + ``exit 2`` form, which CC now
@@ -267,6 +269,15 @@ def main() -> int:
     # ── Case 3: this is the owning tab ──────────────────────────────────
     if owner_cc_id == cc_session_id:
         if _is_allowed_for_owner(tool_name):
+            return 0
+        # Deep Analysis is org-level research, NOT an app build pinned to a
+        # remote workspace — there is no wrong-filesystem hazard to guard
+        # against, so ALL native tools (Read/Write/Edit/Bash/Grep/Glob/
+        # WebSearch/WebFetch/Agent) are allowed here. Every OTHER live mode
+        # (menu/brainstorm/coding/vibe_code) keeps blocking native tools
+        # exactly as before — this is a strict additive carve-out.
+        if sentinel.get("mode") == "deep_analysis":
+            _debug_log(f"  → ALLOW native {tool_name} (mode=deep_analysis)")
             return 0
         # Native tool — refuse with redirect to the bare tool name. The
         # agent already has the actual namespaced catalyst tools loaded

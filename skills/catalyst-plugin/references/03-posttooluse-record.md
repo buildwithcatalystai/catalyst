@@ -78,7 +78,7 @@ if new_mode not in ("coding", "vibe_code"):
     return 0
 ```
 
-Brainstorm/menu/db_finalize phases persist natively via the wizard's LangGraph. The hook has nothing useful to record there.
+Brainstorm/menu/db_finalize phases persist natively via the wizard's LangGraph. The hook has nothing useful to record there. **`deep_analysis` deliberately falls through this gate too** — it's not in the sync allowlist, so research turns are a no-op (ephemeral, no app row to persist to). Safe-by-default: a new mode can never leak turns into a build's history unless it's explicitly added to the `(coding, vibe_code)` tuple.
 
 ### Offset fast-forward on coding entry ([hook_record.py:1273](../../../codeGen/catalyst-plugin/hooks/hook_record.py#L1273), NEW)
 

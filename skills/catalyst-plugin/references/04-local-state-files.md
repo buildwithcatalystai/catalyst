@@ -26,7 +26,7 @@ Five files the plugin writes. CC owns the directory; the plugin co-tenants it.
 | `session_id` | PostToolUse enrichment | Catalyst build UUID (also called "session id" by the wizard). |
 | `app_root` | PostToolUse enrichment | Project path on EC2 (`/home/ubuntu/projects/{slug}`). |
 | `gen_stream_id` | PostToolUse enrichment | Wizard's checkpointer thread id: `{app_id}:{user_id}:{uuid[:12]}`. |
-| `mode` | PostToolUse enrichment | `menu` (claimed but no project) / `coding` / `vibe_code` / `brainstorm`. |
+| `mode` | PostToolUse enrichment (or `start_analysis`) | `menu` (claimed but no project) / `coding` / `vibe_code` / `brainstorm` / `deep_analysis`. `deep_analysis` is org-level research: `session_id=null`, PreToolUse ALLOWS native tools, event-sink is a no-op. Set by the `start_analysis` lifecycle tool; flipped off by the normal build-entry tools (send_message / restart_brainstorm / switch_project). |
 
 ### Lifecycle
 

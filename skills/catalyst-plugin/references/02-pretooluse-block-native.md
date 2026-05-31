@@ -32,6 +32,7 @@ sentinel owner matches event.session_id?
  │                                          │
  │   tool in ALLOW_EXACT? ──── yes → allow  │
  │   is MCP tool (any server)? ─ yes → allow│
+ │   mode == deep_analysis? ─── yes → allow (native tools open for research)
  │   is in REDIRECTS map? ───── yes → deny with redirect text
  │   else                              → allow
  │                                          │
@@ -72,6 +73,19 @@ ALLOW_EXACT = {"TodoWrite", "AskUserQuestion", "Skill",
                "SlashCommand", "ToolSearch",
                "ExitPlanMode", "EnterPlanMode"}
 ```
+
+### deep_analysis carve-out ([catalyst-block-native.py](../../../codeGen/catalyst-plugin/hooks/catalyst-block-native.py) Case 3)
+
+When the owning tab holds the sentinel in `mode == "deep_analysis"`, Case 3
+returns `0` (allow) for **all** native tools — short-circuiting the REDIRECTS
+deny **before** it's reached. Deep Analysis is org-level research (no remote
+app workspace), so the wrong-filesystem hazard the block exists to prevent
+doesn't apply; the agent needs native Read/Write/Edit/Bash/Grep/WebSearch for
+free-form reasoning over the org's data + APIs. **This is the ONLY mode that
+opens native tools** — menu/brainstorm/coding/vibe_code block identically
+(the block is otherwise mode-blind; `mode` only flavors the deny text). The
+carve-out is a single `if sentinel.get("mode") == "deep_analysis": return 0`,
+so the string must match `sentinel.py` / `start_analysis` exactly.
 
 These don't touch the filesystem.
 
