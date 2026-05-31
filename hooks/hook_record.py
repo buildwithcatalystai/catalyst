@@ -389,6 +389,57 @@ def _parse_tool_response(response: Any) -> Dict[str, Any]:
     return response
 
 
+# Marker Claude Code injects when a tool result is too large and gets spilled
+# to a file. Wording confirmed against a live truncation (CC 2.1.x).
+_SPILL_PHRASE = "exceeds maximum allowed tokens"
+_SPILL_MARKER = "Output has been saved to "
+
+
+def _response_text(response: Any) -> str:
+    """Best-effort: pull the text out of any tool_response shape (bare string,
+    content-block list, or wrapped dict). Used only to sniff for the
+    truncation stub."""
+    if isinstance(response, str):
+        return response
+    blocks = response.get("content") if isinstance(response, dict) else response
+    if isinstance(blocks, list):
+        return "".join(
+            b.get("text", "") for b in blocks
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+    return ""
+
+
+def _resolve_spilled_response(response: Any) -> Any:
+    """Recover a tool_response that Claude Code truncated to a file.
+
+    When an MCP tool returns more than CC's max tool-result size, CC saves the
+    real output to ``<transcript-dir>/tool-results/*.txt`` and replaces the
+    inline result with a stub ("… exceeds maximum allowed tokens. Output has
+    been saved to <path>"). The coding-entry ``send_message`` response (PRD
+    kickoff + chat history) routinely trips this — and the stub carries none of
+    the fields ``_enrich_sentinel_from_response`` needs (``mode`` /
+    ``session_id`` / ``events_jwt``), so the sentinel never flips to ``coding``
+    and every later coding turn silently no-ops (mode-not-coding) — no
+    persistence, no WS. Detect the stub, read the spilled file, and return its
+    content as a content-block list so the normal parse path recovers the dict.
+    Best-effort; on any failure, return the response unchanged."""
+    text = _response_text(response)
+    if not text or _SPILL_PHRASE not in text or _SPILL_MARKER not in text:
+        return response
+    try:
+        rest = text.split(_SPILL_MARKER, 1)[1]
+        tokens = rest.split()
+        path = tokens[0].rstrip(".") if tokens else ""
+        if path.endswith(".txt") and os.path.isfile(path):
+            content = Path(path).read_text()
+            logger.info("recovered spilled tool_response from %s (%d chars)", path, len(content))
+            return [{"type": "text", "text": content}]
+    except Exception as exc:
+        logger.warning("spilled-response recovery failed: %s", exc)
+    return response
+
+
 def _maybe_update_local_sentinel(payload: Dict[str, Any]) -> None:
     """Client-side mirror of catalyst-mcp's ``_maybe_update_local_sentinel``
     in [tools/lifecycle.py:780-801](catalyst_mcp/tools/lifecycle.py#L780).
@@ -1372,8 +1423,11 @@ def _run(ctx: _RunCtx, stream) -> int:
     prev_mode = (sentinel.get("mode") or "").strip()
     prev_sid = (sentinel.get("session_id") or "").strip()
     if ctx.hook == "PostToolUse":
+        # Recover the real JSON if CC spilled an oversized coding-entry
+        # response to a file (otherwise the sentinel never flips to coding).
+        _resolved_response = _resolve_spilled_response(event.get("tool_response"))
         _enrich_sentinel_from_response(
-            event.get("tool_name") or "", event.get("tool_response"),
+            event.get("tool_name") or "", _resolved_response,
         )
         # Re-read so the rest of this function sees the freshly patched fields.
         sentinel = _read_sentinel() or sentinel

@@ -95,9 +95,13 @@ if became_coding:
 
 Stops pre-coding banter (project menu, "which Login app?", etc.) from being scooped up by the first `_latest_turn_text` scan. Fires exactly once per coding entry; subsequent calls see `prev_mode == coding` and skip.
 
+## Spilled-response recovery ([hook_record.py](../../../codeGen/catalyst-plugin/hooks/hook_record.py) `_resolve_spilled_response`, NEW 2026-06-01)
+
+**Runs BEFORE enrichment.** Claude Code truncates any tool result larger than its max tool-result size: it saves the real output to `<transcript-dir>/tool-results/*.txt` and replaces the inline result with a stub (`"… exceeds maximum allowed tokens. Output has been saved to <path>"`). The **coding-entry `send_message` response routinely trips this** — PRD `kickoff_message` (~27 KB) + `past_messages` (~20 KB) → ~59 KB. The stub carries NONE of the fields enrichment needs (`mode`/`session_id`/`events_jwt`), so without recovery the sentinel never flips to `coding` and **every later coding turn silently no-ops `mode-not-coding(mode=menu)` — no persistence, no WS** (the 2026-06-01 bug; also hit a build on 2026-05-25). `_resolve_spilled_response` sniffs the stub (`"exceeds maximum allowed tokens"` + `"Output has been saved to "`), reads the spilled `.txt`, and returns its content as a `[{type:text,text:…}]` block so `_parse_tool_response` recovers the dict. Best-effort; returns the response unchanged on any miss. **Manual repair** if a build was stuck pre-fix: read the spill file, write `events_jwt` (the JWT is in it, valid for days) + flip the sentinel `mode` to `coding`.
+
 ## Sentinel enrichment ([hook_record.py:541](../../../codeGen/catalyst-plugin/hooks/hook_record.py#L541))
 
-Only for catalyst-mcp tool responses. Three sub-actions:
+Only for catalyst-mcp tool responses. The raw `tool_response` is first passed through `_resolve_spilled_response` (above). Three sub-actions:
 
 ### `_maybe_update_local_sentinel` ([hook_record.py:392](../../../codeGen/catalyst-plugin/hooks/hook_record.py#L392))
 
