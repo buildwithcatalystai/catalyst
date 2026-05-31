@@ -1,11 +1,11 @@
 {
   "name": "catalyst",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Build apps via Catalyst from inside Claude Code",
   "author": {
-    "name": "ashwiny66",
-    "url": "https://github.com/ashwiny66"
+    "name": "Catalyst",
+    "email": "dev@buildwithcatalyst.com"
   },
-  "homepage": "https://github.com/ashwiny66/catalyst",
-  "repository": "https://github.com/ashwiny66/catalyst"
+  "homepage": "https://github.com/buildwithcatalystai/catalyst",
+  "repository": "https://github.com/buildwithcatalystai/catalyst"
 }

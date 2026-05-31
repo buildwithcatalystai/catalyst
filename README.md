@@ -38,7 +38,7 @@ running. To set those up, see the catalyst-builder repo. The
 short version:
 
 ```sh
-git clone https://github.com/ashwiny66/catalyst-builder.git
+git clone https://github.com/buildwithcatalystai/catalyst-builder.git
 cd catalyst-builder && ./start.sh
 ```
 
@@ -109,7 +109,7 @@ This plugin is content-only — Markdown, JSON, two short hook scripts.
 No build step. To iterate:
 
 ```sh
-git clone https://github.com/ashwiny66/catalyst.git
+git clone https://github.com/buildwithcatalystai/catalyst.git
 # edit files
 /plugin reload catalyst   # in your Claude Code session
 ```

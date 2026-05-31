@@ -1,8 +1,8 @@
 {
   "name": "catalyst-aibuilder",
   "owner": {
-    "name": "ashwiny66",
-    "url": "https://github.com/ashwiny66"
+    "name": "Catalyst",
+    "email": "dev@buildwithcatalyst.com"
   },
   "plugins": [
     {
@@ -10,9 +10,9 @@
       "description": "Build apps via Catalyst from inside Claude Code.",
       "source": {
         "source": "url",
-        "url": "https://github.com/ashwiny66/catalyst.git"
+        "url": "https://github.com/buildwithcatalystai/catalyst.git"
       },
-      "homepage": "https://github.com/ashwiny66/catalyst"
+      "homepage": "https://github.com/buildwithcatalystai/catalyst"
     }
   ]
 }

@@ -114,8 +114,8 @@ Per-transcript "lines already scanned" cursor. Used by `_latest_turn_text` to do
 
 ```json
 {
-  "/Users/lsn-ashwin/.claude/projects/-Users-lsn-ashwin-codeGen/a5185aa6-....jsonl": 67,
-  "/Users/lsn-ashwin/.claude/projects/-Users-lsn-ashwin-codeGen/7192e240-....jsonl": 75
+  "/Users/you/.claude/projects/-Users-you-codeGen/a5185aa6-....jsonl": 67,
+  "/Users/you/.claude/projects/-Users-you-codeGen/7192e240-....jsonl": 75
 }
 ```
 

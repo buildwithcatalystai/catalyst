@@ -4,7 +4,7 @@ How the plugin is published, installed, and discovered by CC. Source: [.claude-p
 
 ## Distribution
 
-- **Repo**: `github.com/ashwiny66/catalyst` (public).
+- **Repo**: `github.com/buildwithcatalystai/catalyst` (public).
 - **Plugin name**: `catalyst` (in `plugin.json`).
 - **Marketplace name**: `catalyst-aibuilder` (in `marketplace.json`) — the namespace user types when installing.
 - **Install command**: `/plugin install catalyst@catalyst-aibuilder` inside CC.
@@ -19,9 +19,9 @@ How the plugin is published, installed, and discovered by CC. Source: [.claude-p
   "name": "catalyst",
   "version": "0.1.0",
   "description": "Build apps via Catalyst from inside Claude Code",
-  "author": {"name": "ashwiny66", "url": "https://github.com/ashwiny66"},
-  "homepage": "https://github.com/ashwiny66/catalyst",
-  "repository": "https://github.com/ashwiny66/catalyst"
+  "author": {"name": "Catalyst", "email": "dev@buildwithcatalyst.com"},
+  "homepage": "https://github.com/buildwithcatalystai/catalyst",
+  "repository": "https://github.com/buildwithcatalystai/catalyst"
 }
 ```
 
@@ -36,7 +36,7 @@ Points the marketplace name at the git repo:
   "name": "catalyst-aibuilder",
   "plugins": [{
     "name": "catalyst",
-    "source": {"source": "url", "url": "https://github.com/ashwiny66/catalyst.git"}
+    "source": {"source": "url", "url": "https://github.com/buildwithcatalystai/catalyst.git"}
   }]
 }
 ```

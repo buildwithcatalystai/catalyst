@@ -122,7 +122,7 @@ Two outcomes:
 
 - **`authenticated: true`** → render the catalyst banner (below) once,
   then proceed to §0 (the menu). Greet the user with their email
-  (from the response): *"Welcome back, ashwin@loadshare.net."*
+  (from the response): *"Welcome back, jordan@acme.com."*
 
 - **`authenticated: false`** → user needs to sign in. **Do NOT show a
   URL or wait for the user to navigate.** Instead:
@@ -179,7 +179,7 @@ multiple frames or rewrites — let one careful pass do the work.
 
 After the block: one blank line, then a single warm greeting that
 includes the user's email from `ensure_auth`'s response (e.g.
-*"Welcome back, ashwin@buildwithcatalyst.net."*), then proceed straight to §0
+*"Welcome back, jordan@acme.com."*), then proceed straight to §0
 (the menu). Don't restate the banner, don't explain it.
 
 Skip the banner on subsequent `ensure_auth` calls in the same

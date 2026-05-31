@@ -1,6 +1,6 @@
 ---
 name: catalyst-plugin
-description: Mental map of the Catalyst Claude Code plugin — the two hooks (PreToolUse owner-claim + native-tool block, PostToolUse/Stop event sink), the local state files (sentinel, events_jwt, offsets, pending, debug log), the MCP server registration, the skill+commands surface, and the full sync pipeline that turns CC tool calls into wizard chat history. Use when working in /Users/lsn-ashwin/codeGen/catalyst-plugin/ or when the user asks about: catalyst plugin, hooks.json, hook_record.py, catalyst-block-native.py, PreToolUse, PostToolUse, Stop hook, sentinel, catalyst-active-session.json, events_jwt, catalyst-events-jwt.json, offsets, catalyst-event-sink-offsets.json, pending records, owner gate, cross-tab block, native tool block, transcript_path, CC transcript JSONL, hook debug log, /catalyst, /catalyst build/list/status/end, plugin.json, .mcp.json registration, catalyst-mcp HTTP MCP, events_jwt session_id mismatch, sync leak, pre-coding messages syncing.
+description: Mental map of the Catalyst Claude Code plugin — the two hooks (PreToolUse owner-claim + native-tool block, PostToolUse/Stop event sink), the local state files (sentinel, events_jwt, offsets, pending, debug log), the MCP server registration, the skill+commands surface, and the full sync pipeline that turns CC tool calls into wizard chat history. Use when working in /Users/you/codeGen/catalyst-plugin/ or when the user asks about: catalyst plugin, hooks.json, hook_record.py, catalyst-block-native.py, PreToolUse, PostToolUse, Stop hook, sentinel, catalyst-active-session.json, events_jwt, catalyst-events-jwt.json, offsets, catalyst-event-sink-offsets.json, pending records, owner gate, cross-tab block, native tool block, transcript_path, CC transcript JSONL, hook debug log, /catalyst, /catalyst build/list/status/end, plugin.json, .mcp.json registration, catalyst-mcp HTTP MCP, events_jwt session_id mismatch, sync leak, pre-coding messages syncing.
 ---
 
 # Catalyst plugin — what runs in Claude Code
@@ -45,7 +45,7 @@ Sync flow              CC turn   →  PostToolUse hook
 
 ## Hard facts (invariants — don't relearn)
 
-- **Plugin home (committed):** `/Users/lsn-ashwin/codeGen/catalyst-plugin/`. Repo: `github.com/ashwiny66/catalyst` (public).
+- **Plugin home (committed):** `/Users/you/codeGen/catalyst-plugin/`. Repo: `github.com/buildwithcatalystai/catalyst` (public).
 - **Plugin install path on the user box:** `$CLAUDE_PLUGIN_ROOT` (set by CC when invoking hooks). `.env` discovery order: process env → `$CLAUDE_PLUGIN_ROOT/.env` → `~/codeGen/catalyst-plugin/.env` → `~/codeGen/catalyst-builder/backend/.env`.
 - **Hooks are shell-out scripts**, not in-process. CC spawns `python3 ${CLAUDE_PLUGIN_ROOT}/hooks/<name>.py` per fire and pipes the event JSON to stdin. PreToolUse timeout=5s, PostToolUse/Stop timeout=10s ([hooks.json](../../../codeGen/catalyst-plugin/hooks/hooks.json)).
 - **MCP server is HTTP, not stdio.** `.mcp.json` registers `http://13.202.117.250:9000/mcp` as `catalyst-mcp` ([.mcp.json](../../../codeGen/catalyst-plugin/.mcp.json)). All tool calls go over the network — the wizard's `mcp_runner.py` is the actual server.
@@ -60,7 +60,7 @@ Sync flow              CC turn   →  PostToolUse hook
   - Deleted on `end`/`abandon_build` (PreToolUse handles this BEFORE the call goes through).
 - **events_jwt presence = "in coding mode."** Path: `~/.claude/state/catalyst-events-jwt.json`. Minted by the wizard inside `send_message`'s coding-entry response; persisted by `_maybe_persist_events_jwt` in PostToolUse. Missing file → hook is a silent no-op (brainstorm/menu phases use native LangGraph persistence; hook has nothing to sync).
 - **Offsets are line-count snapshots, not deltas.** Path: `~/.claude/state/catalyst-event-sink-offsets.json`. Keyed by **absolute transcript path** (`event.transcript_path` from CC, not derived from sentinel). Value = `len(lines)` at last scan. Re-stamped on every `_latest_turn_text` call. **Fast-forwarded to EOF on the coding-entry edge** ([hook_record.py:1265](../../../codeGen/catalyst-plugin/hooks/hook_record.py#L1265)) to prevent pre-coding banter leaking.
-- **CC transcript filename = `{cc_session_id}.jsonl`** under `~/.claude/projects/{cwd-encoded}/`. CWD encoding flips slashes to dashes (`/Users/lsn-ashwin/codeGen` → `-Users-lsn-ashwin-codeGen`). The hook does NOT derive this path — CC passes it via `event["transcript_path"]`.
+- **CC transcript filename = `{cc_session_id}.jsonl`** under `~/.claude/projects/{cwd-encoded}/`. CWD encoding flips slashes to dashes (`/Users/you/codeGen` → `-Users-you-codeGen`). The hook does NOT derive this path — CC passes it via `event["transcript_path"]`.
 - **Two log files** in `~/.claude/state/`:
   - `catalyst-event-sink.log` — one summary line per hook fire (always-on). Rotating: 2 MB × 2 backups.
   - `catalyst-hook-debug.log` — verbose payload dump. Opt-in via `CATALYST_HOOK_DEBUG=1` in any `.env` in the discovery path. Rotating: 5 MB × 2 backups.

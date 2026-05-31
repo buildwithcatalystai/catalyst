@@ -8,7 +8,7 @@ CC writes one JSON object per line to `~/.claude/projects/{cwd-encoded}/{cc_sess
 
 - **Path provenance**: comes from `event["transcript_path"]`. CC is the writer and tells the hook where it's writing. The hook never derives the path.
 - **Filename = cc_session_id**: but this is a CC convention, not something the hook depends on.
-- **CWD encoding**: slashes flipped to dashes. `/Users/lsn-ashwin/codeGen` → `-Users-lsn-ashwin-codeGen`.
+- **CWD encoding**: slashes flipped to dashes. `/Users/you/codeGen` → `-Users-you-codeGen`.
 - **Append-only**: line count only grows during a tab's lifetime.
 - **One file per tab**, not per project. Two tabs on same repo → two JSONL files.
 
