@@ -1,0 +1,18 @@
+{
+  "name": "catalyst-aibuilder",
+  "owner": {
+    "name": "Catalyst",
+    "email": "dev@buildwithcatalyst.com"
+  },
+  "plugins": [
+    {
+      "name": "catalyst",
+      "description": "Your company's hive mind — a single unified consciousness: every problem your team solves becomes a self-improving skill the whole company can use, while the hive's AI employees run business-as-usual.",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/buildwithcatalystai/catalyst.git"
+      },
+      "homepage": "https://github.com/buildwithcatalystai/catalyst"
+    }
+  ]
+}

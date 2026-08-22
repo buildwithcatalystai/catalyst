@@ -1,0 +1,11 @@
+{
+  "name": "catalyst",
+  "version": "0.1.45",
+  "description": "Your company's hive mind \u2014 a single unified consciousness: every problem your team solves becomes a self-improving skill the whole company can use, while the hive's AI employees run business-as-usual",
+  "author": {
+    "name": "Catalyst",
+    "email": "dev@buildwithcatalyst.com"
+  },
+  "homepage": "https://github.com/buildwithcatalystai/catalyst",
+  "repository": "https://github.com/buildwithcatalystai/catalyst"
+}
