@@ -1,0 +1,11 @@
+{
+  "name": "catalyst",
+  "version": "0.1.72",
+  "description": "Your AI Wingman for all your Company's Work — every team member gets one in Catalyst, the Enterprise AI Workspace. It helps solve the problem, makes the execution plan, and tracks every outcome.",
+  "author": {
+    "name": "Catalyst",
+    "email": "dev@buildwithcatalyst.com"
+  },
+  "homepage": "https://github.com/buildwithcatalystai/catalyst",
+  "repository": "https://github.com/buildwithcatalystai/catalyst"
+}

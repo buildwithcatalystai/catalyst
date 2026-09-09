@@ -1,0 +1,18 @@
+{
+  "name": "catalyst-aibuilder",
+  "owner": {
+    "name": "Catalyst",
+    "email": "dev@buildwithcatalyst.com"
+  },
+  "plugins": [
+    {
+      "name": "catalyst",
+      "description": "Your AI Wingman for all your Company's Work — every team member gets one in Catalyst, the Enterprise AI Workspace. It helps solve the problem, makes the execution plan, and tracks every outcome.",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/buildwithcatalystai/catalyst.git"
+      },
+      "homepage": "https://github.com/buildwithcatalystai/catalyst"
+    }
+  ]
+}
