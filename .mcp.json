@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "catalyst-mcp": {
+      "type": "http",
+      "url": "https://buildwithcatalyst.ai/mcp"
+    }
+  }
+}
